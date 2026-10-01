@@ -1,0 +1,75 @@
+name: Refresh board
+
+on:
+  schedule:
+    - cron: "47 11 * * *"   # every day at 6:47 AM Central (11:47 UTC; 5:47 AM during standard time)
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: "Pull new tags from REsimpli (off = just publish the page already in the repo)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install cryptography
+
+      - name: Restore cache
+        if: github.event_name == 'schedule' || inputs.refresh
+        uses: actions/cache/restore@v4
+        with:
+          path: cache.enc
+          key: tagcache-${{ github.run_id }}
+          restore-keys: tagcache-
+
+      - name: Pull tags from REsimpli
+        if: github.event_name == 'schedule' || inputs.refresh
+        env:
+          RESIMPLI_API_KEY: ${{ secrets.RESIMPLI_API_KEY }}
+          BOARD_PASSWORD: ${{ secrets.BOARD_PASSWORD }}
+          BOARD_OUT: board.html
+        run: |
+          if [ -f cache.enc ]; then python encrypt_board.py unlock cache.enc tag_cache.json || rm -f tag_cache.json; fi
+          python refresh_tags.py
+          python encrypt_board.py page board.html site/index.html
+          python encrypt_board.py lock tag_cache.json cache.enc
+          rm -f board.html tag_cache.json
+
+      - name: Save cache
+        if: (github.event_name == 'schedule' || inputs.refresh) && hashFiles('cache.enc') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: cache.enc
+          key: tagcache-${{ github.run_id }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
