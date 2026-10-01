@@ -1,0 +1,348 @@
+<title>Tag Follow-Up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: operations console. Filter bar, KPI strip, chart + teammate table, then the work queue of unanswered tags. */
+:root{
+  --bg:#f3f4f7; --surface:#ffffff; --surface-2:#eceef3; --line:#d9dce5;
+  --fg:#181b24; --fg-2:#4a5063; --fg-3:#7a8094;
+  --accent:#3346d3; --accent-soft:#e3e7fb; --on-accent:#ffffff;
+  --good:#0a8a0a; --good-soft:#e2f3e2; --warn:#b97800; --warn-soft:#fbf0d6; --crit:#c43434; --crit-soft:#f9e1e1;
+  --bar-good:#0ca30c; --bar-open:#ec835a;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141a; --surface:#1b1e26; --surface-2:#232733; --line:#2f3442;
+  --fg:#eceef4; --fg-2:#b2b7c6; --fg-3:#828899;
+  --accent:#8e9bff; --accent-soft:#272d52; --on-accent:#12141a;
+  --good:#5fd35f; --good-soft:#1c3320; --warn:#f4bc4a; --warn-soft:#3a2f17; --crit:#ff7f7f; --crit-soft:#3d1f22;
+  --bar-good:#0ca30c; --bar-open:#ec835a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141a; --surface:#1b1e26; --surface-2:#232733; --line:#2f3442;
+  --fg:#eceef4; --fg-2:#b2b7c6; --fg-3:#828899;
+  --accent:#8e9bff; --accent-soft:#272d52; --on-accent:#12141a;
+  --good:#5fd35f; --good-soft:#1c3320; --warn:#f4bc4a; --warn-soft:#3a2f17; --crit:#ff7f7f; --crit-soft:#3d1f22;
+  --bar-good:#0ca30c; --bar-open:#ec835a; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--f-body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:28px 64px;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:30px;font-weight:700;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:700}
+.sub{color:var(--fg-2);margin:4px 0 0;max-width:62ch}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.stamp{font:12px var(--f-mono);color:var(--fg-3)}
+.banner{display:flex;gap:10px;align-items:center;background:var(--accent-soft);color:var(--fg);border-radius:8px;padding:10px 14px;font-size:13px}
+.banner b{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.filters{display:flex;flex-direction:column;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.frow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flabel{font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);min-width:74px}
+.chip{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:5px 12px;font:500 13px var(--f-body);cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.chip .n{font:500 11px var(--f-mono);background:var(--surface-2);color:var(--fg-2);border-radius:999px;padding:1px 7px}
+.chip[aria-pressed="true"] .n{background:rgba(255,255,255,.22);color:inherit}
+.chip:focus-visible,.tab:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{appearance:none;border:0;background:var(--surface);color:var(--fg-2);padding:5px 12px;font:500 13px var(--f-body);cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--fg);font-weight:600}
+.toggle{display:inline-flex;gap:8px;align-items:center;color:var(--fg-2);font-size:13px;cursor:pointer}
+.toggle input{accent-color:var(--accent);width:16px;height:16px}
+.search{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:6px 10px;font:13px var(--f-body)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .l{font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}
+.kpi .v{font:700 30px/1.15 var(--f-display);font-variant-numeric:tabular-nums}
+.kpi .d{color:var(--fg-2);font-size:12.5px}
+.kpi.alert .v{color:var(--crit)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.ph{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--fg-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font:11px var(--f-mono);fill:var(--fg-3)}
+.tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12px;border-radius:6px;padding:6px 9px;white-space:nowrap;transform:translate(-50%,-100%);margin-top:-8px;font-variant-numeric:tabular-nums}
+.tip[hidden]{display:none}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font:500 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13px}
+.tbl-scroll{overflow-x:auto}
+tr.pick{cursor:pointer} tr.pick:hover td{background:var(--surface-2)}
+.rate{display:flex;align-items:center;gap:8px;min-width:120px}
+.rate .track{flex:1;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.rate .fill{height:100%;border-radius:3px}
+.rate span{font:12px var(--f-mono);width:36px;text-align:right}
+.listbar{display:flex;justify-content:space-between;align-items:flex-end;gap:10px 16px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:4px}
+.sortctl{display:flex;align-items:center;gap:8px;padding-bottom:6px}.sortctl .flabel{min-width:0}
+.tab{appearance:none;background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;font:600 14px var(--f-body);color:var(--fg-2);cursor:pointer;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--fg);border-color:var(--accent)}
+.tab .n{font:500 12px var(--f-mono);color:var(--fg-3);margin-left:4px}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px 12px 0;overflow:hidden}
+.stripe{border-radius:0 3px 3px 0}
+.s-fresh{background:var(--fg-3)} .s-warn{background:var(--warn)} .s-crit{background:var(--crit)} .s-good{background:var(--good)}
+.rmain{min-width:0;display:flex;flex-direction:column;gap:6px}
+.rtop{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.addr{font-weight:600}
+a.addr{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line)}a.addr:hover{color:var(--accent);border-color:var(--accent)}a.addr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.addr .ext{font-size:11px;color:var(--fg-3);margin-left:4px}
+.act{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--fg-2);border-radius:6px;padding:3px 10px;font:500 12px var(--f-body);cursor:pointer}.act:hover{border-color:var(--accent);color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:8px;padding:8px 14px;font-size:13px;display:flex;gap:12px;align-items:center;z-index:5}.toast button{appearance:none;border:0;background:none;color:inherit;font:600 13px var(--f-body);text-decoration:underline;cursor:pointer}
+.pill{font:500 11.5px var(--f-body);border-radius:999px;padding:1px 9px;background:var(--surface-2);color:var(--fg-2);white-space:nowrap}
+.pill.auto{background:var(--accent-soft);color:var(--accent)}
+.flag{font:600 11px var(--f-body);border-radius:4px;padding:1px 7px;white-space:nowrap;display:inline-flex;gap:4px;align-items:center}
+.flag.soon{background:var(--warn-soft);color:var(--warn)}
+.flag.skip{background:var(--surface-2);color:var(--fg-3)}
+.meta{font-size:12.5px;color:var(--fg-3);display:flex;flex-wrap:wrap;gap:4px 12px}
+.meta b{color:var(--fg-2);font-weight:500}
+.quote{color:var(--fg);font-size:13.5px;overflow-wrap:anywhere}
+.reply{font-size:13px;color:var(--fg-2);border-left:2px solid var(--good);padding-left:10px;overflow-wrap:anywhere}
+.rside{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
+.age{font:600 13px var(--f-mono);white-space:nowrap}
+.age.s-warn{background:none;color:var(--warn)} .age.s-crit{background:none;color:var(--crit)} .age.s-fresh{background:none;color:var(--fg-2)} .age.s-good{background:none;color:var(--good)}
+.times{font:12px var(--f-mono);color:var(--fg-3);white-space:nowrap}
+.more{align-self:center;appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:8px 16px;font:500 13px var(--f-body);cursor:pointer}
+.empty{padding:28px;text-align:center;color:var(--fg-2);background:var(--surface);border:1px dashed var(--line);border-radius:10px}
+.foot{color:var(--fg-3);font-size:12.5px;max-width:80ch}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:520px){.wrap{padding-inline:16px}.row{grid-template-columns:4px minmax(0,1fr)}.rside{grid-column:2;flex-direction:row;align-items:center;gap:10px}.flabel{min-width:0;width:100%}}
+@media (prefers-reduced-motion:no-preference){.chip,.seg button,.tab{transition:background-color .12s,border-color .12s,color .12s}}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <h1>Tag Follow-Up</h1>
+      <p class="sub">Every lead where a teammate was @mentioned in a comment, and whether they left a note on that lead afterward.</p>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+  <div class="banner" id="banner" hidden><b>Sample data</b><span>Names, addresses and comments are invented. Tag volumes and reply timing are modeled on a real investor team's account.</span></div>
+
+  <section class="filters" aria-label="Filters">
+    <div class="frow"><span class="flabel">Tagged</span><div class="frow" id="people"></div></div>
+    <div class="frow">
+      <span class="flabel">When</span>
+      <div class="seg" id="range">
+        <button type="button" data-d="7">7 days</button><button type="button" data-d="30" aria-pressed="true">30 days</button><button type="button" data-d="90">90 days</button><button type="button" data-d="0">All</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="auto" checked> Include automation tags</label>
+      <input class="search" id="q" type="search" placeholder="Search address, seller or comment" aria-label="Search">
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+  <section class="grid2">
+    <div class="panel">
+      <div class="ph"><h2 id="chartTitle">Tags per day</h2>
+        <div class="legend"><span><i style="background:var(--bar-good)"></i>Got a note</span><span><i style="background:var(--bar-open)"></i>Still waiting</span></div></div>
+      <div class="chart" id="chart"><div class="tip" id="tip" hidden></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>By teammate</h2><span class="stamp">click a row to filter</span></div>
+      <div class="tbl-scroll"><table id="team"><thead><tr><th>Tagged</th><th class="num">Tags</th><th class="num">Waiting</th><th>Reply rate</th><th class="num">Median reply</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="panel" style="background:none;border:0;padding:0">
+    <div class="listbar">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-open" aria-selected="true">Waiting on a note<span class="n" id="n-open"></span></button>
+      <button class="tab" role="tab" id="tab-done" aria-selected="false">Answered<span class="n" id="n-done"></span></button>
+      <button class="tab" role="tab" id="tab-clr" aria-selected="false">Cleared<span class="n" id="n-clr"></span></button>
+    </div>
+    <div class="sortctl"><span class="flabel">Sort</span><div class="seg" id="sort"><button type="button" data-s="recent" aria-pressed="true">Most recent</button><button type="button" data-s="oldest" aria-pressed="false" id="sort-oldest">Longest waiting</button></div></div>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <div class="toast" id="toast" hidden><span id="toastMsg"></span><button type="button" id="undo">Undo</button></div>
+  <p class="foot">A tag counts as answered when the tagged person adds any comment on the same lead, or replies in the comment thread, after the tag. Calls and texts alone don't count. Repeat tags of the same person on the same lead are grouped into one row. Automation tags are comments posted by workflows, such as "Review this lead" or "Lead Moved to Follow-Up". Clearing a lead only hides it here; nothing changes in REsimpli. A cleared lead comes back if someone is tagged on it again. Review soon marks waiting tags on leads in an active stage (New Leads, Make Offer, Potential Deal, Under Contract). No reply needed marks waiting tags on leads that are dead or rejected.</p>
+</div>
+
+<script>
+const DATA=/*__DATA__*/null;
+(function(){
+const H=36e5,D=864e5,NOW=DATA.generatedAt;
+const P=DATA.people;
+const LEADS=DATA.leads;
+const TAGS=DATA.tags.map(t=>({li:t[0],from:t[1],to:t[2],at:t[3],text:t[4],auto:!!t[5],replyAt:t[6]||0,reply:t[7]||''}));
+const isFormer=i=>/Deleted|Former/.test(P[i]);
+let st={person:-1,days:30,auto:true,q:'',tab:'open',shown:40,sort:'recent'};
+try{const s=JSON.parse(localStorage.getItem('tagfu')||'{}');if(typeof s.days==='number')st.days=s.days;if(typeof s.auto==='boolean')st.auto=s.auto;if(s.sort==='recent'||s.sort==='oldest')st.sort=s.sort}catch(e){}
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDur=ms=>{const h=ms/H;if(h<1)return Math.max(1,Math.round(ms/6e4))+'m';if(h<48)return (h<10?h.toFixed(1):Math.round(h))+'h';return Math.round(h/24)+'d'};
+const fmtDate=t=>new Date(t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const sev=ms=>ms<D?'s-fresh':ms<3*D?'s-warn':'s-crit';
+const sevLabel={ 's-fresh':'under 1 day','s-warn':'1 to 3 days','s-crit':'over 3 days'};
+const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
+const leadLabel=L=>L[0]||L[2]||(L[4]?'No address · '+L[4]:'No address on file');
+
+$('stamp').textContent='Snapshot '+new Date(NOW).toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+$('banner').hidden=!DATA.sample;
+
+// Cleared rows: key = lead + person. Shared store when available, this browser otherwise.
+let CLR={};
+const ckey=(li,to)=>((LEADS[li][5]||('i'+li))+'__'+P[to].replace(/[^A-Za-z0-9]/g,''));
+const isCleared=t=>{const c=CLR[ckey(t.li,t.to)];return !!c&&!t.replyAt&&t.at<=c};
+const store=(()=>{let col=null;const LK='tagfu-cleared'+(DATA.sample?'-demo':'');
+  const loadLocal=()=>{try{CLR=JSON.parse(localStorage.getItem(LK)||'{}')||{}}catch(e){CLR={}}};
+  const saveLocal=()=>{try{localStorage.setItem(LK,JSON.stringify(CLR))}catch(e){}};
+  loadLocal();
+  if(!DATA.sample&&window.claude&&claude.use){claude.use('db').then(db=>{if(!db)return;col=db.collection('cleared');
+    col.onSnapshot(snap=>{const m={};snap.docs.forEach(d=>{const v=d.data();if(v&&typeof v.clearedAt==='number')m[d.id]=v.clearedAt});CLR=m;render()},()=>{col=null})}).catch(()=>{})}
+  return {
+    set(k,v){CLR[k]=v;if(col){col.doc(k).set({clearedAt:v}).catch(()=>{col=null;saveLocal()})}else saveLocal()},
+    del(k){delete CLR[k];if(col){col.doc(k).delete().catch(()=>{col=null;saveLocal()})}else saveLocal()}
+  }})();
+let lastUndo=null,toastT;
+function toast(msg,undo){$('toastMsg').textContent=msg;lastUndo=undo;$('undo').hidden=!undo;$('toast').hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{$('toast').hidden=true;lastUndo=null},6000)}
+
+function base(){ // range + automation + search, not person
+  const cut=st.days?NOW-st.days*D:0, q=st.q.trim().toLowerCase();
+  return TAGS.filter(t=>t.at>=cut&&(st.auto||!t.auto)&&!isFormer(t.to)&&(!q||(t.text+' '+LEADS[t.li].join(' ')+' '+t.reply).toLowerCase().includes(q)));
+}
+function render(){
+  try{localStorage.setItem('tagfu',JSON.stringify({days:st.days,auto:st.auto,sort:st.sort}))}catch(e){}
+  const ALL=base();const B=ALL.filter(t=>!isCleared(t));const CB=ALL.filter(isCleared);
+  // people chips
+  const byP={};B.forEach(t=>{(byP[t.to]=byP[t.to]||{n:0,open:0,rt:[]});byP[t.to].n++;if(!t.replyAt)byP[t.to].open++;else byP[t.to].rt.push(t.replyAt-t.at)});
+  const order=Object.keys(byP).map(Number).sort((a,b)=>byP[b].open-byP[a].open||byP[b].n-byP[a].n);
+  if(st.person>=0&&!byP[st.person])st.person=-1;
+  const openAll=B.filter(t=>!t.replyAt).length;
+  $('people').innerHTML=[`<button class="chip" type="button" data-p="-1" aria-pressed="${st.person<0}">Everyone<span class="n">${openAll}</span></button>`]
+    .concat(order.map(p=>`<button class="chip" type="button" data-p="${p}" aria-pressed="${st.person===p}">${esc(P[p])}<span class="n" title="waiting">${byP[p].open}</span></button>`)).join('');
+  document.querySelectorAll('#range button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.d===st.days)));
+  $('auto').checked=st.auto;
+  const F=st.person<0?B:B.filter(t=>t.to===st.person);
+  const FC=st.person<0?CB:CB.filter(t=>t.to===st.person);
+  // KPIs
+  const open=F.filter(t=>!t.replyAt), done=F.filter(t=>t.replyAt);
+  const openLeads=new Set(open.map(t=>t.li+'|'+t.to)).size;
+  const rate=F.length?done.length/F.length:0;
+  const med=median(done.map(t=>t.replyAt-t.at));
+  const oldest=open.length?Math.max(...open.map(t=>NOW-t.at)):0;
+  const who=st.person<0?'the team':P[st.person].split(' ')[0];
+  $('kpis').innerHTML=`
+   <div class="kpi ${open.length?'alert':''}"><span class="l">Waiting on a note</span><span class="v">${open.length.toLocaleString()}</span><span class="d">tags across ${openLeads.toLocaleString()} lead${openLeads===1?'':'s'}</span></div>
+   <div class="kpi"><span class="l">Reply rate</span><span class="v">${F.length?Math.round(rate*100)+'%':'–'}</span><span class="d">${done.length.toLocaleString()} of ${F.length.toLocaleString()} tags answered</span></div>
+   <div class="kpi"><span class="l">Median time to note</span><span class="v">${med==null?'–':fmtDur(med)}</span><span class="d">for ${who}, when they do reply</span></div>
+   <div class="kpi"><span class="l">Longest wait</span><span class="v">${open.length?fmtDur(oldest):'–'}</span><span class="d">${open.length?'oldest unanswered tag':'nothing waiting'}</span></div>`;
+  // team table
+  $('team').tBodies[0].innerHTML=order.map(p=>{const s=byP[p],r=s.n?(s.n-s.open)/s.n:0,m=median(s.rt);
+    const col=r>=.75?'var(--good)':r>=.5?'var(--warn)':'var(--crit)';
+    return `<tr class="pick" data-p="${p}" tabindex="0" aria-label="Filter to ${esc(P[p])}"${st.person===p?' style="outline:2px solid var(--accent);outline-offset:-2px"':''}><td>${esc(P[p])}</td><td class="num">${s.n}</td><td class="num">${s.open}</td><td><div class="rate"><div class="track"><div class="fill" style="width:${Math.round(r*100)}%;background:${col}"></div></div><span>${Math.round(r*100)}%</span></div></td><td class="num">${m==null?'–':fmtDur(m)}</td></tr>`}).join('')||`<tr><td colspan="5" style="color:var(--fg-2)">No tags in this range.</td></tr>`;
+  drawChart(F);
+  // list
+  const groups={};
+  F.forEach(t=>{const k=t.li+'|'+t.to;(groups[k]=groups[k]||[]).push(t)});
+  const rows=Object.values(groups).map(g=>{g.sort((a,b)=>b.at-a.at);const last=g[0];const openTags=g.filter(t=>!t.replyAt);
+    return {g,last,open:openTags.length>0,first:openTags.length?openTags[openTags.length-1]:null,openCount:openTags.length}});
+  const rec=st.sort==='recent';
+  const openRows=rows.filter(r=>r.open).sort((a,b)=>rec?b.last.at-a.last.at:a.first.at-b.first.at);
+  const doneRows=rows.filter(r=>!r.open).sort((a,b)=>rec?b.last.replyAt-a.last.replyAt:(b.last.replyAt-b.last.at)-(a.last.replyAt-a.last.at));
+  document.querySelectorAll('#sort button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===st.sort)));
+  $('sort-oldest').textContent=st.tab==='done'?'Slowest reply':'Longest waiting';
+  const cg={};FC.forEach(t=>{const k=t.li+'|'+t.to;(cg[k]=cg[k]||[]).push(t)});
+  const clrRows=Object.values(cg).map(g=>{g.sort((a,b)=>b.at-a.at);return {g,last:g[0],first:g[g.length-1],openCount:g.length,clearedAt:CLR[ckey(g[0].li,g[0].to)]}}).sort((a,b)=>rec?b.clearedAt-a.clearedAt:a.first.at-b.first.at);
+  $('n-open').textContent=openRows.length;$('n-done').textContent=doneRows.length;$('n-clr').textContent=clrRows.length;
+  ['open','done','clr'].forEach(k=>$('tab-'+k).setAttribute('aria-selected',String(st.tab===k)));
+  const R=st.tab==='open'?openRows:st.tab==='done'?doneRows:clrRows;
+  if(!R.length){$('list').innerHTML=`<div class="empty">${st.tab==='open'?'Nothing waiting. Every tag in this view got a note back.':st.tab==='done'?'No answered tags in this view yet.':'Nothing cleared. Use Clear on a waiting lead to hide it from this board.'}</div>`;return}
+  $('list').innerHTML=R.slice(0,st.shown).map(r=>st.tab==='open'?openRow(r):st.tab==='done'?doneRow(r):clrRow(r)).join('')+(R.length>st.shown?`<button class="more" id="more" type="button">Show ${Math.min(40,R.length-st.shown)} more of ${R.length-st.shown}</button>`:'');
+}
+function leadBits(L,flag){
+  const lbl=esc(leadLabel(L));const a=L[5]?`<a class="addr" href="https://dashboard.resimpli.com/leads/details?leadsId=${encodeURIComponent(L[5])}" target="_blank" rel="noopener" title="Open this lead in REsimpli">${lbl}<span class="ext" aria-hidden="true">↗</span></a>`:`<span class="addr">${lbl}</span>`;
+  return `<div class="rtop">${a}${L[1]?`<span class="pill">${esc(L[1])}</span>`:''}${flag?FLAG[flagOf(L)]||'':''}</div>
+  <div class="meta">${L[2]&&L[0]?`<span>Seller <b>${esc(L[2])}</b></span>`:''}${L[3]?`<span>Campaign <b>${esc(L[3])}</b></span>`:''}${L[4]&&L[0]?`<span><b>${esc(fmtPhone(L[4]))}</b></span>`:''}</div>`;
+}
+const normStatus=x=>String(x||'').toLowerCase().replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();
+function flagOf(L){const st=normStatus(L[1]);
+  if(/dead|rejected|not interested|sold|closed|do not call|dnc/.test(st))return 'skip';
+  if(/new lead|make offer|potential deal|under contract|appointment|offer made/.test(st))return 'soon';
+  return ''}
+const FLAG={soon:'<span class="flag soon" title="Active lead stage: get a note on this soon">● Review soon</span>',skip:'<span class="flag skip" title="Lead is dead or rejected: a reply probably isn\'t needed">– No reply needed</span>'};
+function fmtPhone(p){const m=String(p).replace(/\D/g,'').match(/^1?(\d{3})(\d{3})(\d{4})$/);return m?`(${m[1]}) ${m[2]}-${m[3]}`:p}
+function openRow(r){const L=LEADS[r.last.li],wait=NOW-r.first.at,s=sev(wait);
+  const froms=[...new Set(r.g.filter(t=>!t.replyAt).map(t=>P[t.from]))];
+  return `<article class="row"><div class="stripe ${s}" title="${sevLabel[s]}"></div><div class="rmain">${leadBits(L,true)}
+   <div class="meta"><span><b>${esc(froms.join(', '))}</b> tagged <b>${esc(P[r.last.to])}</b></span>${r.last.auto?'<span class="pill auto">Automation</span>':''}${r.openCount>1?`<span>${r.openCount} tags, no note since the first</span>`:''}</div>
+   <div class="quote">${esc(r.g.filter(t=>!t.replyAt)[0].text)}</div></div>
+   <div class="rside"><span class="age ${s}">${fmtDur(wait)} waiting</span><span class="times">${r.openCount>1?`last tagged ${fmtDate(r.last.at)}`:`tagged ${fmtDate(r.first.at)}`}</span><button class="act" type="button" data-clear="${r.last.li}|${r.last.to}" aria-label="Clear ${esc(leadLabel(L))} for ${esc(P[r.last.to])} from this board">Clear</button></div></article>`}
+function clrRow(r){const L=LEADS[r.last.li];
+  return `<article class="row"><div class="stripe s-fresh" title="cleared"></div><div class="rmain">${leadBits(L)}
+   <div class="meta"><span><b>${esc([...new Set(r.g.map(t=>P[t.from]))].join(', '))}</b> tagged <b>${esc(P[r.last.to])}</b></span>${r.openCount>1?`<span>${r.openCount} tags</span>`:''}</div>
+   <div class="quote">${esc(r.last.text)}</div></div>
+   <div class="rside"><span class="times">cleared ${fmtDate(r.clearedAt)}</span><button class="act" type="button" data-restore="${r.last.li}|${r.last.to}">Restore</button></div></article>`}
+function doneRow(r){const L=LEADS[r.last.li],t=r.last,took=t.replyAt-t.at;
+  return `<article class="row"><div class="stripe s-good" title="answered"></div><div class="rmain">${leadBits(L)}
+   <div class="meta"><span><b>${esc(P[t.from])}</b> tagged <b>${esc(P[t.to])}</b></span>${t.auto?'<span class="pill auto">Automation</span>':''}</div>
+   <div class="quote">${esc(t.text)}</div>${t.reply?`<div class="reply">${esc(P[t.to].split(' ')[0])}: ${esc(t.reply)}</div>`:''}</div>
+   <div class="rside"><span class="age s-good">noted in ${fmtDur(took)}</span><span class="times">${fmtDate(t.replyAt)}</span></div></article>`}
+
+function drawChart(F){
+  const el=$('chart'),tip=$('tip');
+  const daily=st.days&&st.days<=30;
+  const span=st.days||Math.ceil((NOW-Math.min(...TAGS.map(t=>t.at)))/D);
+  const step=daily?D:7*D, n=Math.max(1,Math.ceil(span*D/step));
+  const end=new Date(NOW);end.setHours(23,59,59,999);const endT=end.getTime();
+  const bins=Array.from({length:n},(_,i)=>({s:endT-(n-i)*step+1,good:0,open:0}));
+  F.forEach(t=>{const i=n-1-Math.floor((endT-t.at)/step);if(i>=0&&i<n){t.replyAt?bins[i].good++:bins[i].open++}});
+  $('chartTitle').textContent=daily?'Tags per day':'Tags per week';
+  const W=640,Hh=280,ml=30,mr=6,mt=8,mb=24,iw=W-ml-mr,ih=Hh-mt-mb;
+  const max=Math.max(1,...bins.map(b=>b.good+b.open));
+  const nice=v=>{const p=Math.pow(10,Math.floor(Math.log10(v))),f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p};
+  const top=nice(max),ticks=[0,top/2,top];
+  const bw=iw/n,gap=Math.min(4,bw*.25),y=v=>mt+ih-v/top*ih;
+  let s=`<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${daily?'Daily':'Weekly'} tags, answered versus still waiting">`;
+  ticks.forEach(v=>{s+=`<line x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`});
+  const lblEvery=Math.ceil(n/7);
+  bins.forEach((b,i)=>{const x=ml+i*bw+gap/2,w=Math.max(1,bw-gap);
+    const hg=b.good/top*ih,ho=b.open/top*ih,yg=mt+ih-hg,yo=yg-ho-(hg&&ho?2:0);
+    const r=Math.min(4,w/2);
+    if(b.good)s+=`<rect x="${x}" y="${yg}" width="${w}" height="${hg}" rx="${hg>r*2&&!b.open?r:1.5}" fill="var(--bar-good)"/>`;
+    if(b.open)s+=`<rect x="${x}" y="${yo}" width="${w}" height="${ho}" rx="${Math.min(r,ho/2)}" fill="var(--bar-open)"/>`;
+    s+=`<rect class="hit" data-i="${i}" x="${ml+i*bw}" y="${mt}" width="${bw}" height="${ih}" fill="transparent"/>`;
+    if((n-1-i)%lblEvery===0){s+=`<text x="${ml+i*bw+bw/2}" y="${Hh-6}" text-anchor="middle">${new Date(b.s).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</text>`}
+  });
+  s+=`</svg>`;
+  el.innerHTML=s;el.appendChild(tip);
+  el.querySelectorAll('.hit').forEach(h=>{
+    h.addEventListener('mouseenter',()=>{const b=bins[+h.dataset.i];const rect=el.getBoundingClientRect(),hr=h.getBoundingClientRect();
+      const lbl=daily?new Date(b.s).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}):'Week of '+new Date(b.s).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      tip.innerHTML=`<b>${lbl}</b><br>${b.good+b.open} tags · ${b.good} noted · ${b.open} waiting`;tip.hidden=false;
+      tip.style.left=Math.min(rect.width-90,Math.max(90,hr.left-rect.left+hr.width/2))+'px';tip.style.top=(y(b.good+b.open)/Hh*rect.height)+'px';h.setAttribute('fill','rgba(127,127,127,.08)')});
+    h.addEventListener('mouseleave',()=>{tip.hidden=true;h.setAttribute('fill','transparent')});
+  });
+}
+
+document.addEventListener('click',e=>{
+  const c=e.target.closest('[data-p]');if(c){const p=+c.dataset.p;st.person=(c.tagName==='TR'&&st.person===p)?-1:p;st.shown=40;render();return}
+  const so=e.target.closest('#sort button');if(so){st.sort=so.dataset.s;st.shown=40;render();return}
+  const r=e.target.closest('#range button');if(r){st.days=+r.dataset.d;st.shown=40;render();return}
+  if(e.target.closest('#tab-open')){st.tab='open';st.shown=40;render();return}
+  if(e.target.closest('#tab-done')){st.tab='done';st.shown=40;render();return}
+  if(e.target.closest('#tab-clr')){st.tab='clr';st.shown=40;render();return}
+  const cl=e.target.closest('[data-clear]');if(cl){const [li,to]=cl.dataset.clear.split('|').map(Number);const k=ckey(li,to);const prev=CLR[k];store.set(k,Date.now());render();toast('Cleared from the board',()=>{prev?store.set(k,prev):store.del(k);render()});return}
+  const rs=e.target.closest('[data-restore]');if(rs){const [li,to]=rs.dataset.restore.split('|').map(Number);const k=ckey(li,to);const prev=CLR[k];store.del(k);render();toast('Restored to the board',()=>{store.set(k,prev);render()});return}
+  if(e.target.closest('#undo')){if(lastUndo)lastUndo();$('toast').hidden=true;lastUndo=null;return}
+  if(e.target.closest('#more')){st.shown+=40;render()}
+});
+document.addEventListener('keydown',e=>{const tr=e.target.closest&&e.target.closest('tr.pick');if(tr&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tr.click()}});
+$('auto').addEventListener('change',e=>{st.auto=e.target.checked;st.shown=40;render()});
+let qt;$('q').addEventListener('input',e=>{clearTimeout(qt);qt=setTimeout(()=>{st.q=e.target.value;st.shown=40;render()},150)});
+render();
+})();
+</script>
