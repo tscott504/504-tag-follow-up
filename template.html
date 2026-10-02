@@ -123,7 +123,7 @@ a.addr{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line)}
   <header class="head">
     <div>
       <h1>Tag Follow-Up</h1>
-      <p class="sub">Every lead where a teammate was @mentioned in a comment, and whether they left a note on that lead afterward.</p>
+      <p class="sub">Every lead where a teammate was @mentioned, and whether they did anything on that lead afterward: a note, a call, a text, a status change or a task.</p>
     </div>
     <div class="stamp" id="stamp"></div>
   </header>
@@ -146,20 +146,20 @@ a.addr{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line)}
   <section class="grid2">
     <div class="panel">
       <div class="ph"><h2 id="chartTitle">Tags per day</h2>
-        <div class="legend"><span><i style="background:var(--bar-good)"></i>Got a note</span><span><i style="background:var(--bar-open)"></i>Still waiting</span></div></div>
+        <div class="legend"><span><i style="background:var(--bar-good)"></i>Acted on</span><span><i style="background:var(--bar-open)"></i>No action yet</span></div></div>
       <div class="chart" id="chart"><div class="tip" id="tip" hidden></div></div>
     </div>
     <div class="panel">
       <div class="ph"><h2>By teammate</h2><span class="stamp">click a row to filter</span></div>
-      <div class="tbl-scroll"><table id="team"><thead><tr><th>Tagged</th><th class="num">Tags</th><th class="num">Waiting</th><th>Reply rate</th><th class="num">Median reply</th></tr></thead><tbody></tbody></table></div>
+      <div class="tbl-scroll"><table id="team"><thead><tr><th>Tagged</th><th class="num">Tags</th><th class="num">Waiting</th><th>Action rate</th><th class="num">Median time</th></tr></thead><tbody></tbody></table></div>
     </div>
   </section>
 
   <section class="panel" style="background:none;border:0;padding:0">
     <div class="listbar">
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tab-open" aria-selected="true">Waiting on a note<span class="n" id="n-open"></span></button>
-      <button class="tab" role="tab" id="tab-done" aria-selected="false">Answered<span class="n" id="n-done"></span></button>
+      <button class="tab" role="tab" id="tab-open" aria-selected="true">No action yet<span class="n" id="n-open"></span></button>
+      <button class="tab" role="tab" id="tab-done" aria-selected="false">Acted on<span class="n" id="n-done"></span></button>
       <button class="tab" role="tab" id="tab-clr" aria-selected="false">Cleared<span class="n" id="n-clr"></span></button>
     </div>
     <div class="sortctl"><span class="flabel">Sort</span><div class="seg" id="sort"><button type="button" data-s="recent" aria-pressed="true">Most recent</button><button type="button" data-s="oldest" aria-pressed="false" id="sort-oldest">Longest waiting</button></div></div>
@@ -168,7 +168,7 @@ a.addr{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line)}
   </section>
 
   <div class="toast" id="toast" hidden><span id="toastMsg"></span><button type="button" id="undo">Undo</button></div>
-  <p class="foot">A tag counts as answered when the tagged person adds any comment on the same lead, or replies in the comment thread, after the tag. Calls and texts alone don't count. Repeat tags of the same person on the same lead are grouped into one row. Automation tags are comments posted by workflows, such as "Review this lead" or "Lead Moved to Follow-Up". Clearing a lead only hides it here; nothing changes in REsimpli. A cleared lead comes back if someone is tagged on it again. Review soon marks waiting tags on leads in an active stage (New Leads, Make Offer, Potential Deal, Under Contract). No reply needed marks waiting tags on leads that are dead or rejected.</p>
+  <p class="foot">A tag counts as acted on when the tagged person does anything on that lead after the tag: adds a note, calls or texts the seller, changes the status, works a task or sets an appointment. Incoming calls and texts, and automations that run on their own, don't count. Repeat tags of the same person on the same lead are grouped into one row. Automation tags are comments posted by workflows, such as "Review this lead" or "Lead Moved to Follow-Up". Clearing a lead only hides it here; nothing changes in REsimpli. A cleared lead comes back if someone is tagged on it again. Review soon marks waiting tags on leads in an active stage (New Leads, Make Offer, Potential Deal, Under Contract). No reply needed marks waiting tags on leads that are dead or rejected.</p>
 </div>
 
 <script>
@@ -236,10 +236,10 @@ function render(){
   const oldest=open.length?Math.max(...open.map(t=>NOW-t.at)):0;
   const who=st.person<0?'the team':P[st.person].split(' ')[0];
   $('kpis').innerHTML=`
-   <div class="kpi ${open.length?'alert':''}"><span class="l">Waiting on a note</span><span class="v">${open.length.toLocaleString()}</span><span class="d">tags across ${openLeads.toLocaleString()} lead${openLeads===1?'':'s'}</span></div>
-   <div class="kpi"><span class="l">Reply rate</span><span class="v">${F.length?Math.round(rate*100)+'%':'–'}</span><span class="d">${done.length.toLocaleString()} of ${F.length.toLocaleString()} tags answered</span></div>
-   <div class="kpi"><span class="l">Median time to note</span><span class="v">${med==null?'–':fmtDur(med)}</span><span class="d">for ${who}, when they do reply</span></div>
-   <div class="kpi"><span class="l">Longest wait</span><span class="v">${open.length?fmtDur(oldest):'–'}</span><span class="d">${open.length?'oldest unanswered tag':'nothing waiting'}</span></div>`;
+   <div class="kpi ${open.length?'alert':''}"><span class="l">No action yet</span><span class="v">${open.length.toLocaleString()}</span><span class="d">tags across ${openLeads.toLocaleString()} lead${openLeads===1?'':'s'}</span></div>
+   <div class="kpi"><span class="l">Action rate</span><span class="v">${F.length?Math.round(rate*100)+'%':'–'}</span><span class="d">${done.length.toLocaleString()} of ${F.length.toLocaleString()} tags acted on</span></div>
+   <div class="kpi"><span class="l">Median time to act</span><span class="v">${med==null?'–':fmtDur(med)}</span><span class="d">for ${who}, when they do act</span></div>
+   <div class="kpi"><span class="l">Longest wait</span><span class="v">${open.length?fmtDur(oldest):'–'}</span><span class="d">${open.length?'oldest tag with no action':'nothing waiting'}</span></div>`;
   // team table
   $('team').tBodies[0].innerHTML=order.map(p=>{const s=byP[p],r=s.n?(s.n-s.open)/s.n:0,m=median(s.rt);
     const col=r>=.75?'var(--good)':r>=.5?'var(--warn)':'var(--crit)';
@@ -260,7 +260,7 @@ function render(){
   $('n-open').textContent=openRows.length;$('n-done').textContent=doneRows.length;$('n-clr').textContent=clrRows.length;
   ['open','done','clr'].forEach(k=>$('tab-'+k).setAttribute('aria-selected',String(st.tab===k)));
   const R=st.tab==='open'?openRows:st.tab==='done'?doneRows:clrRows;
-  if(!R.length){$('list').innerHTML=`<div class="empty">${st.tab==='open'?'Nothing waiting. Every tag in this view got a note back.':st.tab==='done'?'No answered tags in this view yet.':'Nothing cleared. Use Clear on a waiting lead to hide it from this board.'}</div>`;return}
+  if(!R.length){$('list').innerHTML=`<div class="empty">${st.tab==='open'?'Nothing waiting. Every tag in this view has been acted on.':st.tab==='done'?'No tags acted on in this view yet.':'Nothing cleared. Use Clear on a waiting lead to hide it from this board.'}</div>`;return}
   $('list').innerHTML=R.slice(0,st.shown).map(r=>st.tab==='open'?openRow(r):st.tab==='done'?doneRow(r):clrRow(r)).join('')+(R.length>st.shown?`<button class="more" id="more" type="button">Show ${Math.min(40,R.length-st.shown)} more of ${R.length-st.shown}</button>`:'');
 }
 function leadBits(L,flag){
@@ -278,7 +278,7 @@ function fmtPhone(p){const m=String(p).replace(/\D/g,'').match(/^1?(\d{3})(\d{3}
 function openRow(r){const L=LEADS[r.last.li],wait=NOW-r.first.at,s=sev(wait);
   const froms=[...new Set(r.g.filter(t=>!t.replyAt).map(t=>P[t.from]))];
   return `<article class="row"><div class="stripe ${s}" title="${sevLabel[s]}"></div><div class="rmain">${leadBits(L,true)}
-   <div class="meta"><span><b>${esc(froms.join(', '))}</b> tagged <b>${esc(P[r.last.to])}</b></span>${r.last.auto?'<span class="pill auto">Automation</span>':''}${r.openCount>1?`<span>${r.openCount} tags, no note since the first</span>`:''}</div>
+   <div class="meta"><span><b>${esc(froms.join(', '))}</b> tagged <b>${esc(P[r.last.to])}</b></span>${r.last.auto?'<span class="pill auto">Automation</span>':''}${r.openCount>1?`<span>${r.openCount} tags, no action since the first</span>`:''}</div>
    <div class="quote">${esc(r.g.filter(t=>!t.replyAt)[0].text)}</div></div>
    <div class="rside"><span class="age ${s}">${fmtDur(wait)} waiting</span><span class="times">${r.openCount>1?`last tagged ${fmtDate(r.last.at)}`:`tagged ${fmtDate(r.first.at)}`}</span><button class="act" type="button" data-clear="${r.last.li}|${r.last.to}" aria-label="Clear ${esc(leadLabel(L))} for ${esc(P[r.last.to])} from this board">Clear</button></div></article>`}
 function clrRow(r){const L=LEADS[r.last.li];
@@ -287,10 +287,10 @@ function clrRow(r){const L=LEADS[r.last.li];
    <div class="quote">${esc(r.last.text)}</div></div>
    <div class="rside"><span class="times">cleared ${fmtDate(r.clearedAt)}</span><button class="act" type="button" data-restore="${r.last.li}|${r.last.to}">Restore</button></div></article>`}
 function doneRow(r){const L=LEADS[r.last.li],t=r.last,took=t.replyAt-t.at;
-  return `<article class="row"><div class="stripe s-good" title="answered"></div><div class="rmain">${leadBits(L)}
+  return `<article class="row"><div class="stripe s-good" title="acted on"></div><div class="rmain">${leadBits(L)}
    <div class="meta"><span><b>${esc(P[t.from])}</b> tagged <b>${esc(P[t.to])}</b></span>${t.auto?'<span class="pill auto">Automation</span>':''}</div>
    <div class="quote">${esc(t.text)}</div>${t.reply?`<div class="reply">${esc(P[t.to].split(' ')[0])}: ${esc(t.reply)}</div>`:''}</div>
-   <div class="rside"><span class="age s-good">noted in ${fmtDur(took)}</span><span class="times">${fmtDate(t.replyAt)}</span></div></article>`}
+   <div class="rside"><span class="age s-good">acted in ${fmtDur(took)}</span><span class="times">${fmtDate(t.replyAt)}</span></div></article>`}
 
 function drawChart(F){
   const el=$('chart'),tip=$('tip');

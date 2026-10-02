@@ -118,8 +118,27 @@ def check_account(api):
     print(f"Account: {me.get('firstName','')} {me.get('lastName','')} ({email})")
 
 
+SKIP_ACTION = re.compile(r"automatically|drip campaign has been|Lead added in|deactivated|stopped successfully|"
+                         r"You got a missed call|You received a call|SMS Received", re.I)
+
+
+def action_label(x):
+    c = strip(x.get("comment") or "")
+    d = x.get("direction") or ""
+    if x.get("activityType") == 8:
+        return "Note: " + c[:90]
+    if "outgoingCall" in d:
+        return "Called the seller"
+    if "outgoingSms" in d:
+        return "Texted the seller"
+    if x.get("activityType") == 7:
+        return "Set an appointment"
+    return c[:90]
+
+
 def fetch_comments(api, lead_id):
-    out, page = [], 1
+    """Comments on the lead, plus every action a teammate took on it (notes, calls, texts, status changes, tasks)."""
+    out, acts, page = [], [], 1
     while page <= 30:
         it = items_of(api.post("activityList", {"moduleId": 1, "subModuleId": lead_id, "type": 1, "page": page, "limit": 100})) or []
         for x in it:
@@ -129,10 +148,13 @@ def fetch_comments(api, lead_id):
                             "html": x.get("comment") or "",
                             "replyUsers": [u.get("userId") for u in (r.get("userData") or [])],
                             "replyAt": r.get("createdAt") or 0})
+            if x.get("mainUserId") == ACCOUNT_ID and x.get("createdBy") and not (x.get("direction") or "").startswith("incoming") \
+                    and not SKIP_ACTION.search(strip(x.get("comment") or "")):
+                acts.append([x.get("createdBy"), x.get("createdAt") or 0, action_label(x)])
         if len(it) < 100:
             break
         page += 1
-    return out
+    return out, sorted(acts, key=lambda a: a[1])
 
 
 def fetch_contact(api, lead_id):
@@ -188,7 +210,7 @@ def main():
         c = cache["leads"].get(lid)
         meta = {"address": l.get("address") or "", "status": l.get("mainStatusTitle") or "",
                 "campaign": l.get("marketingTitle") or "", "updatedAt": l.get("updatedAt") or 0}
-        if c and c.get("updatedAt") == meta["updatedAt"] and "comments" in c:
+        if c and c.get("updatedAt") == meta["updatedAt"] and "comments" in c and "actions" in c:
             c.update(meta)
         else:
             cache["leads"][lid] = {**(c or {}), **meta}
@@ -203,9 +225,10 @@ def main():
     lock = threading.Lock()
 
     def work(lid):
-        cs = fetch_comments(api, lid)
+        cs, acts = fetch_comments(api, lid)
         with lock:
             cache["leads"][lid]["comments"] = cs
+            cache["leads"][lid]["actions"] = acts
             done[0] += 1
             if done[0] % 200 == 0:
                 save(cache)
@@ -231,10 +254,11 @@ def main():
             for uid in ids:
                 if uid == c["by"] or uid not in users:
                     continue
-                later = sorted((x for x in cs if x["by"] == uid and x["at"] > c["at"]), key=lambda x: x["at"])
+                # answered = the tagged person did anything on this lead after the tag
+                later = next((a for a in L.get("actions") or [] if a[0] == uid and a[1] > c["at"]), None)
                 reply_at, reply_text = 0, ""
                 if later:
-                    reply_at, reply_text = later[0]["at"], strip(later[0]["html"])[:120]
+                    reply_at, reply_text = later[1], later[2][:120]
                 elif uid in c["replyUsers"] and c["replyAt"]:
                     reply_at = c["replyAt"]
                 text = strip(c["html"])[:260]
@@ -278,7 +302,7 @@ def main():
                  + page_html.replace('<div class="wrap">', '</head><body>\n<div class="wrap">', 1) + "\n</body></html>")
     open(OUT, "w", encoding="utf-8").write(page_html)
     open_count = sum(1 for t in tags if not t["replyAt"])
-    print(f"Done in {(time.time()-t0)/60:.1f} min, {api.calls} API calls. {len(tags)} tags, {open_count} waiting on a note.")
+    print(f"Done in {(time.time()-t0)/60:.1f} min, {api.calls} API calls. {len(tags)} tags, {open_count} with no action yet.")
     print(f"Open {OUT}")
 
 
