@@ -2,7 +2,7 @@ name: Refresh board
 
 on:
   schedule:
-    - cron: "47 11 * * *"   # every day at 6:47 AM Central (11:47 UTC; 5:47 AM during standard time)
+    - cron: "50 17 * * *"   # every day at 12:50 PM Central so it's ready by 1 PM (17:50 UTC; 11:50 AM during standard time)
   workflow_dispatch:
     inputs:
       refresh:
