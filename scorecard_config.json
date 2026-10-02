@@ -1,0 +1,29 @@
+{
+  "team": {
+    "lead_manager": "Abbey West",
+    "acquisitions": "Ron Lem",
+    "marketing_va": "Walleed Ahad"
+  },
+  "exclude_campaigns_containing": ["land"],
+  "weekly_targets": {
+    "leads": 46,
+    "leads_stretch": 58,
+    "appointments_set": 6,
+    "qualified_appointments": 5,
+    "appointments_kept": 3.5,
+    "offers": 2,
+    "contracts": 0.75,
+    "abbey_calls": 125
+  },
+  "q4": {
+    "start": "2026-10-01",
+    "end": "2026-12-31",
+    "deals_goal": 3,
+    "revenue_goal": 15000,
+    "spend_goal": 3000
+  },
+  "closed_deals": [
+    {"date": "2026-10-01", "address": "Example: delete this row", "type": "wholesale", "revenue_to_504": 0, "example": true}
+  ],
+  "notes": "Add one row to closed_deals each time a deal is monetized. For listings, revenue_to_504 is only the 20% share. Edit this file on GitHub; the scorecard picks it up on the next daily run."
+}

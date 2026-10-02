@@ -138,7 +138,7 @@ def action_label(x):
 
 def fetch_comments(api, lead_id):
     """Comments on the lead, plus every action a teammate took on it (notes, calls, texts, status changes, tasks)."""
-    out, acts, page = [], [], 1
+    out, acts, events, page = [], [], [], 1
     while page <= 30:
         it = items_of(api.post("activityList", {"moduleId": 1, "subModuleId": lead_id, "type": 1, "page": page, "limit": 100})) or []
         for x in it:
@@ -151,10 +151,12 @@ def fetch_comments(api, lead_id):
             if x.get("mainUserId") == ACCOUNT_ID and x.get("createdBy") and not (x.get("direction") or "").startswith("incoming") \
                     and not SKIP_ACTION.search(strip(x.get("comment") or "")):
                 acts.append([x.get("createdBy"), x.get("createdAt") or 0, action_label(x)])
+            if x.get("activityType") == 10 and x.get("mainUserId") == ACCOUNT_ID:
+                events.append([x.get("createdAt") or 0, strip(x.get("comment") or "")[:160]])
         if len(it) < 100:
             break
         page += 1
-    return out, sorted(acts, key=lambda a: a[1])
+    return out, sorted(acts, key=lambda a: a[1]), sorted(events)
 
 
 def fetch_contact(api, lead_id):
@@ -189,6 +191,7 @@ def main():
             break
         page += 1
     first = {n.split()[0].lower(): i for i, n in users.items() if n}
+    cache["users"] = users
 
     leads, page = [], 1
     while True:
@@ -209,8 +212,9 @@ def main():
         seen.add(lid)
         c = cache["leads"].get(lid)
         meta = {"address": l.get("address") or "", "status": l.get("mainStatusTitle") or "",
-                "campaign": l.get("marketingTitle") or "", "updatedAt": l.get("updatedAt") or 0}
-        if c and c.get("updatedAt") == meta["updatedAt"] and "comments" in c and "actions" in c:
+                "campaign": l.get("marketingTitle") or "", "updatedAt": l.get("updatedAt") or 0,
+                "created": l.get("leadCreated") or l.get("createdAt") or 0}
+        if c and c.get("updatedAt") == meta["updatedAt"] and "comments" in c and "actions" in c and "events" in c:
             c.update(meta)
         else:
             cache["leads"][lid] = {**(c or {}), **meta}
@@ -225,10 +229,11 @@ def main():
     lock = threading.Lock()
 
     def work(lid):
-        cs, acts = fetch_comments(api, lid)
+        cs, acts, evs = fetch_comments(api, lid)
         with lock:
             cache["leads"][lid]["comments"] = cs
             cache["leads"][lid]["actions"] = acts
+            cache["leads"][lid]["events"] = evs
             done[0] += 1
             if done[0] % 200 == 0:
                 save(cache)
@@ -304,6 +309,12 @@ def main():
     open_count = sum(1 for t in tags if not t["replyAt"])
     print(f"Done in {(time.time()-t0)/60:.1f} min, {api.calls} API calls. {len(tags)} tags, {open_count} with no action yet.")
     print(f"Open {OUT}")
+    if os.environ.get("SCORECARD", "1") != "0":
+        try:
+            import scorecard
+            scorecard.main()
+        except Exception as e:  # the tag board still publishes if the scorecard fails
+            print(f"Scorecard skipped: {e}")
 
 
 def save(cache):

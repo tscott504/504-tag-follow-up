@@ -9,7 +9,7 @@ The password comes from the BOARD_PASSWORD environment variable.
 AES-256-GCM with a PBKDF2-SHA256 key, so the page decrypts in the browser
 with the same password and nothing readable is ever published.
 """
-import base64, json, os, sys
+import base64, json, os, re, sys
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
@@ -78,10 +78,25 @@ def main():
         sys.exit("Set BOARD_PASSWORD (8+ characters).")
     raw = open(src, "rb").read()
     if mode == "page":
+        side = os.path.join(os.path.dirname(os.path.abspath(src)), "scorecard.html")
+        if os.path.basename(dst) == "index.html" and os.path.exists(side) and os.path.abspath(side) != os.path.abspath(src):
+            # publish the weekly scorecard next to the board and link the two
+            raw = raw.replace(b'<div class="stamp" id="stamp"></div>',
+                              b'<div><a href="scorecard.html" style="font-size:13px">Weekly scorecard</a><div class="stamp" id="stamp"></div></div>', 1)
+            sraw = open(side, "rb").read()
+            salt2, iv2, ct2 = seal(sraw, pw)
+            m2 = re.search(r"<title>(.*?)</title>", sraw.decode("utf-8", "ignore"))
+            p2 = json.dumps({"salt": b64(salt2), "iv": b64(iv2), "ct": b64(ct2), "iter": ITER})
+            os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+            open(os.path.join(os.path.dirname(dst) or ".", "scorecard.html"), "w", encoding="utf-8").write(
+                LOADER.replace("__PAYLOAD__", p2).replace("504 Tag Follow-Up", m2.group(1) if m2 else "504 Weekly Scorecard"))
         salt, iv, ct = seal(raw, pw)
         payload = json.dumps({"salt": b64(salt), "iv": b64(iv), "ct": b64(ct), "iter": ITER})
         os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
-        open(dst, "w", encoding="utf-8").write(LOADER.replace("__PAYLOAD__", payload))
+        m = re.search(r"<title>(.*?)</title>", raw.decode("utf-8", "ignore"))
+        name = m.group(1) if m else "504 Tag Follow-Up"
+        page = LOADER.replace("__PAYLOAD__", payload).replace("504 Tag Follow-Up", name)
+        open(dst, "w", encoding="utf-8").write(page)
     elif mode == "lock":
         salt, iv, ct = seal(raw, pw)
         open(dst, "wb").write(salt + iv + ct)
