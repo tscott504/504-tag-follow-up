@@ -79,6 +79,7 @@ def main():
                               "kept", "appts_due", "offers", "pushed", "contracts", "abbey_calls", "abbey_texts", "ron_calls"]}
 
     leads = cache["leads"]
+    offers_by = {}
     for lid, L in leads.items():
         i = wk(L.get("created") or 0)
         camp = (L.get("campaign") or "").lower()
@@ -96,7 +97,10 @@ def main():
             if j is None:
                 continue
             if kind == 37:
-                m["offers"][j] += 1          # offer saved in the seller's Offer field
+                m["offers"][j] += 1          # offer saved in the seller's Offer field, by Ron or Abbey
+                if j == WEEKS - 2:
+                    who = (users.get(ev[3] if len(ev) > 3 else "", "") or "Other").split(" ")[0]
+                    offers_by[who] = offers_by.get(who, 0) + 1
                 continue
             st = to_status(txt)
             if re.search(r"make offer|offers made|offer made", st):
@@ -184,6 +188,7 @@ def main():
     offers_4 = sum(m["offers"][-5:-1])
     kept_4 = sum(m["kept"][-5:-1])
 
+    T = dict(T, _offers_by=offers_by)
     write_html(now, weeks, m, T, untouched, not_updated, stale_by, stale_tags, deals, revenue, q, pct_time,
                contracts_q, offers_4, kept_4, users)
     print(f"Scorecard written: {OUT}")
@@ -222,7 +227,8 @@ def write_html(now, weeks, m, T, untouched, not_updated, stale_by, stale_tags, d
         ("Qualified appointments", "Abbey", "qualified", T["qualified_appointments"], "by appointment date"),
         ("Appointments kept", "Ron", "kept", T["appointments_kept"], "by appointment date"),
         ("Leads pushed to Ron", "Abbey", "pushed", None, "moved to Make Offer"),
-        ("Offers made", "Ron", "offers", T["offers"], "saved in the seller's Offer field"),
+        ("Offers made", "Ron + Abbey", "offers", T["offers"], "saved in the Offer field" + (
+            " · last week: " + ", ".join(f"{k} {v}" for k, v in sorted(T["_offers_by"].items(), key=lambda x: -x[1])) if T.get("_offers_by") else "")),
         ("Contracts", "Ron", "contracts", T["contracts"], "moved to Under Contract"),
         ("Abbey calls to sellers", "Abbey", "abbey_calls", T["abbey_calls"], "outbound, logged in REsimpli"),
     ]
@@ -334,7 +340,7 @@ ul li:last-child{{border-bottom:0}}ul li>*:first-child{{flex:1;min-width:0;overf
  <li>Clear the three leak lists above before next week.</li></ol></div>
 </section>
 
-<p class="foot">Weeks run Monday to Sunday, Central time. Leads exclude land campaigns. Appointments count seller appointments only: "set" is by the day it was booked, qualified and kept are by the appointment date. Offers count offers saved in each seller's Offer field. Leads pushed to Ron count moves into Make Offer, which is a handoff, not an offer. Contracts count leads moved into Under Contract. Abbey's calls are outbound calls logged in REsimpli. Closed deals and revenue come from scorecard_config.json, with listings counted at 504's 20% share.</p>
+<p class="foot">Weeks run Monday to Sunday, Central time. Leads exclude land campaigns. Appointments count seller appointments only: "set" is by the day it was booked, qualified and kept are by the appointment date. Offers count offers saved in each seller's Offer field, whether Ron or Abbey entered them. Leads pushed to Ron count moves into Make Offer, which is a handoff, not an offer. Contracts count leads moved into Under Contract. Abbey's calls are outbound calls logged in REsimpli. Closed deals and revenue come from scorecard_config.json, with listings counted at 504's 20% share.</p>
 </div>"""
     doc = ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n'
            + page.replace('<div class="wrap">', '</head><body>\n<div class="wrap">', 1) + "\n</body></html>")
