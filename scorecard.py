@@ -76,7 +76,7 @@ def main():
 
     zero = lambda: [0] * WEEKS
     m = {k: zero() for k in ["leads", "leads_sms", "land", "appts_set", "appts_set_abbey", "appts_set_ai", "qualified",
-                              "kept", "appts_due", "offers", "contracts", "abbey_calls", "abbey_texts", "ron_calls"]}
+                              "kept", "appts_due", "offers", "pushed", "contracts", "abbey_calls", "abbey_texts", "ron_calls"]}
 
     leads = cache["leads"]
     for lid, L in leads.items():
@@ -89,13 +89,18 @@ def main():
                 m["leads"][i] += 1
                 if re.search(r"sms|text", camp):
                     m["leads_sms"][i] += 1
-        for at, txt in L.get("events") or []:
+        for ev in L.get("events") or []:
+            at, txt = ev[0], ev[1]
+            kind = ev[2] if len(ev) > 2 else 10
             j = wk(at)
             if j is None:
                 continue
+            if kind == 37:
+                m["offers"][j] += 1          # offer saved in the seller's Offer field
+                continue
             st = to_status(txt)
             if re.search(r"make offer|offers made|offer made", st):
-                m["offers"][j] += 1
+                m["pushed"][j] += 1          # moved to Make Offer = handed to Ron, not an offer yet
             if "under contract" in st:
                 m["contracts"][j] += 1
         for by, at, label in L.get("actions") or []:
@@ -174,8 +179,8 @@ def main():
     q_end = datetime.fromisoformat(q["end"]).replace(tzinfo=TZ)
     q_start = datetime.fromisoformat(q["start"]).replace(tzinfo=TZ)
     pct_time = max(0, min(1, (now - q_start) / (q_end + timedelta(days=1) - q_start)))
-    contracts_q = sum(1 for L in leads.values() for at, t in L.get("events") or []
-                      if ms(q_start) <= at <= nowms and "under contract" in to_status(t))
+    contracts_q = sum(1 for L in leads.values() for ev in L.get("events") or []
+                      if ms(q_start) <= ev[0] <= nowms and (len(ev) < 3 or ev[2] == 10) and "under contract" in to_status(ev[1]))
     offers_4 = sum(m["offers"][-5:-1])
     kept_4 = sum(m["kept"][-5:-1])
 
@@ -216,7 +221,8 @@ def write_html(now, weeks, m, T, untouched, not_updated, stale_by, stale_tags, d
         ("Appointments set", "Abbey", "appts_set", T["appointments_set"], ""),
         ("Qualified appointments", "Abbey", "qualified", T["qualified_appointments"], "by appointment date"),
         ("Appointments kept", "Ron", "kept", T["appointments_kept"], "by appointment date"),
-        ("Offers made", "Ron", "offers", T["offers"], "moved to Make Offer"),
+        ("Leads pushed to Ron", "Abbey", "pushed", None, "moved to Make Offer"),
+        ("Offers made", "Ron", "offers", T["offers"], "saved in the seller's Offer field"),
         ("Contracts", "Ron", "contracts", T["contracts"], "moved to Under Contract"),
         ("Abbey calls to sellers", "Abbey", "abbey_calls", T["abbey_calls"], "outbound, logged in REsimpli"),
     ]
@@ -328,7 +334,7 @@ ul li:last-child{{border-bottom:0}}ul li>*:first-child{{flex:1;min-width:0;overf
  <li>Clear the three leak lists above before next week.</li></ol></div>
 </section>
 
-<p class="foot">Weeks run Monday to Sunday, Central time. Leads exclude land campaigns. Appointments count seller appointments only: "set" is by the day it was booked, qualified and kept are by the appointment date. Offers and contracts count leads moved into Make Offer or Under Contract that week. Abbey's calls are outbound calls logged in REsimpli. Closed deals and revenue come from scorecard_config.json, with listings counted at 504's 20% share.</p>
+<p class="foot">Weeks run Monday to Sunday, Central time. Leads exclude land campaigns. Appointments count seller appointments only: "set" is by the day it was booked, qualified and kept are by the appointment date. Offers count offers saved in each seller's Offer field. Leads pushed to Ron count moves into Make Offer, which is a handoff, not an offer. Contracts count leads moved into Under Contract. Abbey's calls are outbound calls logged in REsimpli. Closed deals and revenue come from scorecard_config.json, with listings counted at 504's 20% share.</p>
 </div>"""
     doc = ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n'
            + page.replace('<div class="wrap">', '</head><body>\n<div class="wrap">', 1) + "\n</body></html>")

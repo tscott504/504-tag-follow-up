@@ -95,6 +95,13 @@ def items_of(resp):
     return d.get("items", d) if isinstance(d, dict) else d
 
 
+PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
+
+
+def no_phones(t):
+    return PHONE.sub("[phone removed]", t or "")
+
+
 def strip(h):
     return re.sub(r"\s+", " ", html.unescape(TAG_RE.sub(" ", h or "")).replace("﻿", "")).strip()
 
@@ -151,8 +158,10 @@ def fetch_comments(api, lead_id):
             if x.get("mainUserId") == ACCOUNT_ID and x.get("createdBy") and not (x.get("direction") or "").startswith("incoming") \
                     and not SKIP_ACTION.search(strip(x.get("comment") or "")):
                 acts.append([x.get("createdBy"), x.get("createdAt") or 0, action_label(x)])
-            if x.get("activityType") == 10 and x.get("mainUserId") == ACCOUNT_ID:
-                events.append([x.get("createdAt") or 0, strip(x.get("comment") or "")[:160]])
+            if x.get("activityType") in (10, 37) and x.get("mainUserId") == ACCOUNT_ID:
+                # 10 = status change, 37 = offer saved in the lead's Offer field
+                events.append([x.get("createdAt") or 0, strip(x.get("comment") or "")[:160], x.get("activityType"),
+                               x.get("createdBy") or ""])
         if len(it) < 100:
             break
         page += 1
@@ -214,7 +223,7 @@ def main():
         meta = {"address": l.get("address") or "", "status": l.get("mainStatusTitle") or "",
                 "campaign": l.get("marketingTitle") or "", "updatedAt": l.get("updatedAt") or 0,
                 "created": l.get("leadCreated") or l.get("createdAt") or 0}
-        if c and c.get("updatedAt") == meta["updatedAt"] and "comments" in c and "actions" in c and "events" in c:
+        if c and c.get("updatedAt") == meta["updatedAt"] and "comments" in c and "actions" in c and c.get("ev") == 2:
             c.update(meta)
         else:
             cache["leads"][lid] = {**(c or {}), **meta}
@@ -234,6 +243,7 @@ def main():
             cache["leads"][lid]["comments"] = cs
             cache["leads"][lid]["actions"] = acts
             cache["leads"][lid]["events"] = evs
+            cache["leads"][lid]["ev"] = 2
             done[0] += 1
             if done[0] % 200 == 0:
                 save(cache)
@@ -263,10 +273,10 @@ def main():
                 later = next((a for a in L.get("actions") or [] if a[0] == uid and a[1] > c["at"]), None)
                 reply_at, reply_text = 0, ""
                 if later:
-                    reply_at, reply_text = later[1], later[2][:120]
+                    reply_at, reply_text = later[1], no_phones(later[2])[:120]
                 elif uid in c["replyUsers"] and c["replyAt"]:
                     reply_at = c["replyAt"]
-                text = strip(c["html"])[:260]
+                text = no_phones(strip(c["html"]))[:260]
                 tags.append({"lid": lid, "from": c["byName"] or users.get(c["by"], "Former user"), "to": users[uid],
                              "at": c["at"], "text": text, "auto": 1 if AUTO.search(text) else 0,
                              "replyAt": reply_at, "reply": reply_text})
@@ -296,7 +306,7 @@ def main():
         if t["lid"] not in lidx:
             L = cache["leads"][t["lid"]]
             lidx[t["lid"]] = len(lrows)
-            lrows.append([L.get("address", ""), L.get("status", ""), L.get("contact", ""), L.get("campaign", ""), L.get("phone", ""), t["lid"]])
+            lrows.append([L.get("address", ""), L.get("status", ""), L.get("contact", ""), L.get("campaign", ""), "", t["lid"]])
         rows.append([lidx[t["lid"]], P(t["from"]), P(t["to"]), t["at"], t["text"], t["auto"], t["replyAt"], t["reply"]])
 
     data = {"generatedAt": now, "sample": False, "people": people, "leads": lrows, "tags": rows}
