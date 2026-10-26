@@ -46,6 +46,11 @@ h2{font-size:17px;font-weight:700}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .chip .n{font:500 11px var(--f-mono);background:var(--surface-2);color:var(--fg-2);border-radius:999px;padding:1px 7px}
 .chip[aria-pressed="true"] .n{background:rgba(255,255,255,.22);color:inherit}
+.chip.tog[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--fg)}
+.chip.tog[aria-pressed="true"] .n{background:var(--surface);color:var(--fg-2)}
+.chip.tog[aria-pressed="false"]{color:var(--fg-3);border-style:dashed}
+.chip.tog[aria-pressed="false"] .lbl{text-decoration:line-through}
+.linkbtn{appearance:none;border:0;background:none;color:var(--accent);font:500 12.5px var(--f-body);cursor:pointer;padding:4px 2px;text-decoration:underline;text-underline-offset:2px}
 .chip:focus-visible,.tab:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{appearance:none;border:0;background:var(--surface);color:var(--fg-2);padding:5px 12px;font:500 13px var(--f-body);cursor:pointer;border-right:1px solid var(--line)}
@@ -131,12 +136,14 @@ a.addr{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line)}
 
   <section class="filters" aria-label="Filters">
     <div class="frow"><span class="flabel">Tagged</span><div class="frow" id="people"></div></div>
+    <div class="frow"><span class="flabel">Stage</span><div class="frow" id="stages"></div><button type="button" class="linkbtn" id="stAll">Show all</button><button type="button" class="linkbtn" id="stActive">Active only</button></div>
     <div class="frow">
       <span class="flabel">When</span>
       <div class="seg" id="range">
         <button type="button" data-d="7">7 days</button><button type="button" data-d="30" aria-pressed="true">30 days</button><button type="button" data-d="90">90 days</button><button type="button" data-d="0">All</button>
       </div>
       <label class="toggle"><input type="checkbox" id="auto" checked> Include automation tags</label>
+      <label class="toggle"><input type="checkbox" id="noreply" checked> Include "No reply needed"</label>
       <input class="search" id="q" type="search" placeholder="Search address, seller or comment" aria-label="Search">
     </div>
   </section>
@@ -162,13 +169,13 @@ a.addr{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--line)}
       <button class="tab" role="tab" id="tab-done" aria-selected="false">Acted on<span class="n" id="n-done"></span></button>
       <button class="tab" role="tab" id="tab-clr" aria-selected="false">Cleared<span class="n" id="n-clr"></span></button>
     </div>
-    <div class="sortctl"><span class="flabel">Sort</span><div class="seg" id="sort"><button type="button" data-s="recent" aria-pressed="true">Most recent</button><button type="button" data-s="oldest" aria-pressed="false" id="sort-oldest">Longest waiting</button></div></div>
+    <div class="sortctl"><span class="flabel">Sort</span><div class="seg" id="sort"><button type="button" data-s="soon" aria-pressed="true">Review soon first</button><button type="button" data-s="recent" aria-pressed="false">Most recent</button><button type="button" data-s="oldest" aria-pressed="false" id="sort-oldest">Longest waiting</button></div></div>
     </div>
     <div class="list" id="list"></div>
   </section>
 
   <div class="toast" id="toast" hidden><span id="toastMsg"></span><button type="button" id="undo">Undo</button></div>
-  <p class="foot">A tag counts as acted on when the tagged person does anything on that lead after the tag: adds a note, calls or texts the seller, changes the status, works a task or sets an appointment. Incoming calls and texts, and automations that run on their own, don't count. Repeat tags of the same person on the same lead are grouped into one row. Automation tags are comments posted by workflows, such as "Review this lead" or "Lead Moved to Follow-Up". Clearing a lead only hides it here; nothing changes in REsimpli. A cleared lead comes back if someone is tagged on it again. Review soon marks waiting tags on leads in an active stage (New Leads, Make Offer, Potential Deal, Under Contract). No reply needed marks waiting tags on leads that are dead or rejected.</p>
+  <p class="foot">A tag counts as acted on when the tagged person does anything on that lead after the tag: adds a note, calls or texts the seller, changes the status, works a task or sets an appointment. Incoming calls and texts, and automations that run on their own, don't count. Repeat tags of the same person on the same lead are grouped into one row. Automation tags are comments posted by workflows, such as "Review this lead" or "Lead Moved to Follow-Up". Clearing a lead only hides it here; nothing changes in REsimpli. A cleared lead comes back if someone is tagged on it again. Review soon marks waiting tags on leads in an active stage (New Leads, Make Offer, Potential Deal, Under Contract). No reply needed marks tags on leads whose stage is Dead, Rejected, Sold, Closed or Do Not Call; untick Include "No reply needed" to hide them. Stage toggles show or hide leads by their current stage; Active only hides Dead, Rejected, Sold and Long Term Nurture. Your stage picks are saved in this browser.</p>
 </div>
 
 <script>
@@ -179,8 +186,8 @@ const P=DATA.people;
 const LEADS=DATA.leads;
 const TAGS=DATA.tags.map(t=>({li:t[0],from:t[1],to:t[2],at:t[3],text:t[4],auto:!!t[5],replyAt:t[6]||0,reply:t[7]||''}));
 const isFormer=i=>/Deleted|Former/.test(P[i]);
-let st={person:-1,days:30,auto:true,q:'',tab:'open',shown:40,sort:'recent'};
-try{const s=JSON.parse(localStorage.getItem('tagfu')||'{}');if(typeof s.days==='number')st.days=s.days;if(typeof s.auto==='boolean')st.auto=s.auto;if(s.sort==='recent'||s.sort==='oldest')st.sort=s.sort}catch(e){}
+let st={person:-1,days:30,auto:true,q:'',tab:'open',shown:40,sort:'soon',off:[],noreply:true};
+try{const s=JSON.parse(localStorage.getItem('tagfu')||'{}');if(typeof s.days==='number')st.days=s.days;if(typeof s.auto==='boolean')st.auto=s.auto;if(s.sort2==='recent'||s.sort2==='oldest'||s.sort2==='soon')st.sort=s.sort2;if(typeof s.noreply==='boolean')st.noreply=s.noreply;if(Array.isArray(s.off))st.off=s.off.filter(x=>typeof x==='string')}catch(e){}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDur=ms=>{const h=ms/H;if(h<1)return Math.max(1,Math.round(ms/6e4))+'m';if(h<48)return (h<10?h.toFixed(1):Math.round(h))+'h';return Math.round(h/24)+'d'};
@@ -188,7 +195,7 @@ const fmtDate=t=>new Date(t).toLocaleString(undefined,{month:'short',day:'numeri
 const sev=ms=>ms<D?'s-fresh':ms<3*D?'s-warn':'s-crit';
 const sevLabel={ 's-fresh':'under 1 day','s-warn':'1 to 3 days','s-crit':'over 3 days'};
 const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
-const leadLabel=L=>L[0]||L[2]||(L[4]?'No address · '+L[4]:'No address on file');
+const leadLabel=L=>L[0]||L[2]||'No address on file';
 
 $('stamp').textContent='Snapshot '+new Date(NOW).toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
 $('banner').hidden=!DATA.sample;
@@ -210,13 +217,25 @@ const store=(()=>{let col=null;const LK='tagfu-cleared'+(DATA.sample?'-demo':'')
 let lastUndo=null,toastT;
 function toast(msg,undo){$('toastMsg').textContent=msg;lastUndo=undo;$('undo').hidden=!undo;$('toast').hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{$('toast').hidden=true;lastUndo=null},6000)}
 
-function base(){ // range + automation + search, not person
+// Lead stage, without the emoji REsimpli puts in front ("⭐New Leads" and "New Leads" are the same stage)
+const stageOf=L=>String(L[1]||'').replace(/[^\p{L}\p{N}'’ ]/gu,' ').replace(/\s+/g,' ').trim()||'No stage';
+const STAGE_ORDER=['new leads','follow ups','cant reach','appointment','make offer','offers made','potential deal','under contract','rejected offers','long term nurture','sold','dead lead'];
+const stageRank=s=>{const k=s.toLowerCase().replace(/['’]/g,'');const i=STAGE_ORDER.findIndex(o=>k.includes(o));return i<0?STAGE_ORDER.length:i};
+const isActiveStage=s=>!/dead|rejected|sold|closed|long term nurture|nurture|do not call|dnc|no stage/i.test(s);
+function baseAll(){ // range + automation + search, not person or stage
   const cut=st.days?NOW-st.days*D:0, q=st.q.trim().toLowerCase();
-  return TAGS.filter(t=>t.at>=cut&&(st.auto||!t.auto)&&!isFormer(t.to)&&(!q||(t.text+' '+LEADS[t.li].join(' ')+' '+t.reply).toLowerCase().includes(q)));
+  return TAGS.filter(t=>t.at>=cut&&(st.auto||!t.auto)&&!isFormer(t.to)&&(st.noreply||flagOf(LEADS[t.li])!=='skip')&&(!q||(t.text+' '+LEADS[t.li].join(' ')+' '+t.reply).toLowerCase().includes(q)));
 }
+function base(all){const off=new Set(st.off);return (all||baseAll()).filter(t=>!off.has(stageOf(LEADS[t.li])))}
 function render(){
-  try{localStorage.setItem('tagfu',JSON.stringify({days:st.days,auto:st.auto,sort:st.sort}))}catch(e){}
-  const ALL=base();const B=ALL.filter(t=>!isCleared(t));const CB=ALL.filter(isCleared);
+  try{localStorage.setItem('tagfu',JSON.stringify({days:st.days,auto:st.auto,sort2:st.sort,off:st.off,noreply:st.noreply}))}catch(e){}
+  const A0=baseAll();const ALL=base(A0);const B=ALL.filter(t=>!isCleared(t));const CB=ALL.filter(isCleared);
+  // stage toggles: every stage in this date range, with waiting tags for the selected teammate
+  const bySt={};A0.forEach(t=>{const s=stageOf(LEADS[t.li]);bySt[s]=bySt[s]||0;if(!t.replyAt&&!isCleared(t)&&(st.person<0||t.to===st.person))bySt[s]++});
+  st.off.forEach(s=>{if(!(s in bySt))bySt[s]=0});
+  const stages=Object.keys(bySt).sort((a,b)=>stageRank(a)-stageRank(b)||a.localeCompare(b));
+  $('stages').innerHTML=stages.map(s=>{const on=!st.off.includes(s);return `<button class="chip tog" type="button" data-stage="${esc(s)}" aria-pressed="${on}" title="${on?'Click to hide':'Click to show'} ${esc(s)}"><span class="lbl">${esc(s)}</span><span class="n" title="waiting">${bySt[s]}</span></button>`}).join('');
+  $('stAll').hidden=!st.off.length;
   // people chips
   const byP={};B.forEach(t=>{(byP[t.to]=byP[t.to]||{n:0,open:0,rt:[]});byP[t.to].n++;if(!t.replyAt)byP[t.to].open++;else byP[t.to].rt.push(t.replyAt-t.at)});
   const order=Object.keys(byP).map(Number).sort((a,b)=>byP[b].open-byP[a].open||byP[b].n-byP[a].n);
@@ -225,7 +244,7 @@ function render(){
   $('people').innerHTML=[`<button class="chip" type="button" data-p="-1" aria-pressed="${st.person<0}">Everyone<span class="n">${openAll}</span></button>`]
     .concat(order.map(p=>`<button class="chip" type="button" data-p="${p}" aria-pressed="${st.person===p}">${esc(P[p])}<span class="n" title="waiting">${byP[p].open}</span></button>`)).join('');
   document.querySelectorAll('#range button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.d===st.days)));
-  $('auto').checked=st.auto;
+  $('auto').checked=st.auto;$('noreply').checked=st.noreply;
   const F=st.person<0?B:B.filter(t=>t.to===st.person);
   const FC=st.person<0?CB:CB.filter(t=>t.to===st.person);
   // KPIs
@@ -250,9 +269,12 @@ function render(){
   F.forEach(t=>{const k=t.li+'|'+t.to;(groups[k]=groups[k]||[]).push(t)});
   const rows=Object.values(groups).map(g=>{g.sort((a,b)=>b.at-a.at);const last=g[0];const openTags=g.filter(t=>!t.replyAt);
     return {g,last,open:openTags.length>0,first:openTags.length?openTags[openTags.length-1]:null,openCount:openTags.length}});
-  const rec=st.sort==='recent';
-  const openRows=rows.filter(r=>r.open).sort((a,b)=>rec?b.last.at-a.last.at:a.first.at-b.first.at);
-  const doneRows=rows.filter(r=>!r.open).sort((a,b)=>rec?b.last.replyAt-a.last.replyAt:(b.last.replyAt-b.last.at)-(a.last.replyAt-a.last.at));
+  const rec=st.sort!=='oldest';
+  // Review soon first: active-stage leads on top, dead/rejected at the bottom, newest first inside each group
+  const rank=r=>{const f=flagOf(LEADS[r.last.li]);return f==='soon'?0:f==='skip'?2:1};
+  const bySoon=(a,b,t)=>st.sort==='soon'?(rank(a)-rank(b))||t(a,b):t(a,b);
+  const openRows=rows.filter(r=>r.open).sort((a,b)=>bySoon(a,b,(a,b)=>rec?b.last.at-a.last.at:a.first.at-b.first.at));
+  const doneRows=rows.filter(r=>!r.open).sort((a,b)=>bySoon(a,b,(a,b)=>rec?b.last.replyAt-a.last.replyAt:(b.last.replyAt-b.last.at)-(a.last.replyAt-a.last.at)));
   document.querySelectorAll('#sort button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===st.sort)));
   $('sort-oldest').textContent=st.tab==='done'?'Slowest reply':'Longest waiting';
   const cg={};FC.forEach(t=>{const k=t.li+'|'+t.to;(cg[k]=cg[k]||[]).push(t)});
@@ -266,7 +288,7 @@ function render(){
 function leadBits(L,flag){
   const lbl=esc(leadLabel(L));const a=L[5]?`<a class="addr" href="https://dashboard.resimpli.com/leads/details?leadsId=${encodeURIComponent(L[5])}" target="_blank" rel="noopener" title="Open this lead in REsimpli">${lbl}<span class="ext" aria-hidden="true">↗</span></a>`:`<span class="addr">${lbl}</span>`;
   return `<div class="rtop">${a}${L[1]?`<span class="pill">${esc(L[1])}</span>`:''}${flag?FLAG[flagOf(L)]||'':''}</div>
-  <div class="meta">${L[2]&&L[0]?`<span>Seller <b>${esc(L[2])}</b></span>`:''}${L[3]?`<span>Campaign <b>${esc(L[3])}</b></span>`:''}${L[4]&&L[0]?`<span><b>${esc(fmtPhone(L[4]))}</b></span>`:''}</div>`;
+  <div class="meta">${L[2]&&L[0]?`<span>Seller <b>${esc(L[2])}</b></span>`:''}${L[3]?`<span>Campaign <b>${esc(L[3])}</b></span>`:''}</div>`;
 }
 const normStatus=x=>String(x||'').toLowerCase().replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();
 function flagOf(L){const st=normStatus(L[1]);
@@ -330,6 +352,9 @@ function drawChart(F){
 
 document.addEventListener('click',e=>{
   const c=e.target.closest('[data-p]');if(c){const p=+c.dataset.p;st.person=(c.tagName==='TR'&&st.person===p)?-1:p;st.shown=40;render();return}
+  const sg=e.target.closest('[data-stage]');if(sg){const s=sg.dataset.stage;st.off=st.off.includes(s)?st.off.filter(x=>x!==s):st.off.concat(s);st.shown=40;render();return}
+  if(e.target.closest('#stAll')){st.off=[];st.shown=40;render();return}
+  if(e.target.closest('#stActive')){st.off=[...new Set(baseAll().map(t=>stageOf(LEADS[t.li])))].filter(s=>!isActiveStage(s));st.shown=40;render();return}
   const so=e.target.closest('#sort button');if(so){st.sort=so.dataset.s;st.shown=40;render();return}
   const r=e.target.closest('#range button');if(r){st.days=+r.dataset.d;st.shown=40;render();return}
   if(e.target.closest('#tab-open')){st.tab='open';st.shown=40;render();return}
@@ -342,6 +367,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{const tr=e.target.closest&&e.target.closest('tr.pick');if(tr&&(e.key==='Enter'||e.key===' ')){e.preventDefault();tr.click()}});
 $('auto').addEventListener('change',e=>{st.auto=e.target.checked;st.shown=40;render()});
+$('noreply').addEventListener('change',e=>{st.noreply=e.target.checked;st.shown=40;render()});
 let qt;$('q').addEventListener('input',e=>{clearTimeout(qt);qt=setTimeout(()=>{st.q=e.target.value;st.shown=40;render()},150)});
 render();
 })();

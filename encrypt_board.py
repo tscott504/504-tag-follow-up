@@ -5,7 +5,10 @@ Password protection for the Tag Follow-Up board.
   python encrypt_board.py lock   tag_cache.json  cache.enc     # encrypt the cache
   python encrypt_board.py unlock cache.enc  tag_cache.json     # decrypt the cache
 
-The password comes from the BOARD_PASSWORD environment variable.
+The login comes from the BOARD_USERNAME and BOARD_PASSWORD environment variables
+(GitHub secrets). The page key is derived from "username:password", so both are
+needed to open it. With no BOARD_USERNAME set, the page asks for the password only.
+The data cache is always locked with the password alone.
 AES-256-GCM with a PBKDF2-SHA256 key, so the page decrypts in the browser
 with the same password and nothing readable is ever published.
 """
@@ -40,14 +43,15 @@ LOADER = r"""<!doctype html>
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;display:grid;place-items:center;padding:16px}
 form{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px}
 h1{margin:0;font-size:22px}p{margin:0;color:var(--fg2);font-size:14px}
-input[type=password]{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:10px 12px;font:inherit}
+input[type=password],input[type=text]{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:10px 12px;font:inherit}
 button{border:0;background:var(--accent);color:var(--on);border-radius:8px;padding:10px;font:600 15px inherit;cursor:pointer}
 label{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--fg2)}
 .err{color:var(--crit);font-size:13px;min-height:1.2em}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style></head><body>
-<form id="f"><h1>504 Tag Follow-Up</h1><p>Enter the team password to open the board.</p>
-<input id="pw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required autofocus>
+<form id="f"><h1>504 Tag Follow-Up</h1><p>__PROMPT__</p>
+<input id="un" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Username" aria-label="Username" __UNATTR__>
+<input id="pw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required>
 <label><input id="rem" type="checkbox"> Remember on this device</label>
 <button type="submit" id="go">Open board</button><div class="err" id="err" role="alert"></div></form>
 <script>
@@ -58,17 +62,41 @@ async function decrypt(pw){
   const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:ub(P.salt),iterations:P.iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
   return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub(P.iv)},key,ub(P.ct)));
 }
+const NEED_USER=P.user===true;
+if(!NEED_USER)document.getElementById('un').remove();
+document.getElementById(NEED_USER?'un':'pw').focus();
 const show=html=>{document.open();document.write(html);document.close()};
-const LK='tagfu-board-pw';
+const LK='tagfu-board-login';
 document.getElementById('f').addEventListener('submit',async e=>{e.preventDefault();
-  const pw=document.getElementById('pw').value,rem=document.getElementById('rem').checked,go=document.getElementById('go'),err=document.getElementById('err');
+  const un=NEED_USER?document.getElementById('un').value.trim().toLowerCase():'';
+  const pw=(NEED_USER?un+':':'')+document.getElementById('pw').value,rem=document.getElementById('rem').checked,go=document.getElementById('go'),err=document.getElementById('err');
   go.textContent='Opening…';err.textContent='';
-  let html;try{html=await decrypt(pw)}catch(x){go.textContent='Open board';err.textContent="That password didn't work. Check it and try again.";return}
+  let html;try{html=await decrypt(pw)}catch(x){go.textContent='Open board';err.textContent=NEED_USER?"That username or password didn't work. Check them and try again.":"That password didn't work. Check it and try again.";return}
   try{rem?localStorage.setItem(LK,pw):localStorage.removeItem(LK)}catch(x){}
   show(html)});
 (async()=>{let s=null;try{s=localStorage.getItem(LK)}catch(x){}if(!s)return;try{show(await decrypt(s))}catch(x){try{localStorage.removeItem(LK)}catch(y){}}})();
 </script></body></html>
 """
+
+
+def page_key():
+    """'username:password' when a username is set, else just the password."""
+    un = os.environ.get("BOARD_USERNAME", "").strip().lower()
+    pw = os.environ.get("BOARD_PASSWORD", "")
+    return (un + ":" + pw if un else pw), bool(un)
+
+
+def publish(raw, dst, fallback_title):
+    """Write the page behind the login screen."""
+    os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+    key, need_user = page_key()
+    salt, iv, ct = seal(raw, key)
+    payload = json.dumps({"salt": b64(salt), "iv": b64(iv), "ct": b64(ct), "iter": ITER, "user": need_user})
+    m = re.search(r"<title>(.*?)</title>", raw.decode("utf-8", "ignore"))
+    prompt = "Log in to open the board." if need_user else "Enter the team password to open the board."
+    page = (LOADER.replace("__PAYLOAD__", payload).replace("__PROMPT__", prompt)
+            .replace("__UNATTR__", "required" if need_user else ""))
+    open(dst, "w", encoding="utf-8").write(page.replace("504 Tag Follow-Up", m.group(1) if m else fallback_title))
 
 
 def main():
@@ -83,20 +111,8 @@ def main():
             # publish the weekly scorecard next to the board and link the two
             raw = raw.replace(b'<div class="stamp" id="stamp"></div>',
                               b'<div><a href="scorecard.html" style="font-size:13px">Weekly scorecard</a><div class="stamp" id="stamp"></div></div>', 1)
-            sraw = open(side, "rb").read()
-            salt2, iv2, ct2 = seal(sraw, pw)
-            m2 = re.search(r"<title>(.*?)</title>", sraw.decode("utf-8", "ignore"))
-            p2 = json.dumps({"salt": b64(salt2), "iv": b64(iv2), "ct": b64(ct2), "iter": ITER})
-            os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
-            open(os.path.join(os.path.dirname(dst) or ".", "scorecard.html"), "w", encoding="utf-8").write(
-                LOADER.replace("__PAYLOAD__", p2).replace("504 Tag Follow-Up", m2.group(1) if m2 else "504 Weekly Scorecard"))
-        salt, iv, ct = seal(raw, pw)
-        payload = json.dumps({"salt": b64(salt), "iv": b64(iv), "ct": b64(ct), "iter": ITER})
-        os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
-        m = re.search(r"<title>(.*?)</title>", raw.decode("utf-8", "ignore"))
-        name = m.group(1) if m else "504 Tag Follow-Up"
-        page = LOADER.replace("__PAYLOAD__", payload).replace("504 Tag Follow-Up", name)
-        open(dst, "w", encoding="utf-8").write(page)
+            publish(open(side, "rb").read(), os.path.join(os.path.dirname(dst) or ".", "scorecard.html"), "504 Weekly Scorecard")
+        publish(raw, dst, "504 Tag Follow-Up")
     elif mode == "lock":
         salt, iv, ct = seal(raw, pw)
         open(dst, "wb").write(salt + iv + ct)
